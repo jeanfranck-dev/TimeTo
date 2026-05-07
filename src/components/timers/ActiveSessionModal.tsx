@@ -5,6 +5,7 @@ import type { Timer } from '../../types';
 import { X, Play, Pause, Volume2, VolumeX, CheckCircle, Music, Link as LinkIcon } from 'lucide-react';
 import { useTimers } from '../../hooks/useTimers';
 import toast from 'react-hot-toast';
+import { isSameDay } from 'date-fns';
 
 interface ActiveSessionModalProps {
   timer: Timer;
@@ -19,8 +20,22 @@ const STATIONS = [
 ];
 
 export const ActiveSessionModal = ({ timer, onClose }: ActiveSessionModalProps) => {
-  const { logHistory } = useTimers();
-  const [timeLeft, setTimeLeft] = useState(timer.duration_minutes * 60);
+  const { logHistory, updateTimer } = useTimers();
+  
+  // Calcular tiempo restante inicial basado en la persistencia diaria
+  const getInitialTimeLeft = () => {
+    if (timer.remaining_seconds === undefined || timer.remaining_seconds === null || !timer.last_used_date) {
+      return timer.duration_minutes * 60;
+    }
+    // Si la última vez que se usó fue en un día anterior, resetea al máximo
+    if (!isSameDay(new Date(timer.last_used_date), new Date())) {
+      return timer.duration_minutes * 60;
+    }
+    return timer.remaining_seconds;
+  };
+
+  const initialTimeLeft = useRef(getInitialTimeLeft());
+  const [timeLeft, setTimeLeft] = useState(initialTimeLeft.current);
   const [isActive, setIsActive] = useState(true);
   const [isCompleted, setIsCompleted] = useState(false);
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
@@ -47,7 +62,6 @@ export const ActiveSessionModal = ({ timer, onClose }: ActiveSessionModalProps) 
       setCustomUrl('');
       setShowStations(false);
       
-      // Fetch video title to display instead of 'Custom Radio'
       try {
         const response = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${id}`);
         const data = await response.json();
@@ -105,25 +119,43 @@ export const ActiveSessionModal = ({ timer, onClose }: ActiveSessionModalProps) 
 
       playAlarmSound();
 
+      // Guardar el estado de completado en el timer (persistir que se acabó hoy)
+      updateTimer({
+        id: timer.id,
+        updates: { remaining_seconds: 0, last_used_date: new Date().toISOString() }
+      }).catch(console.error);
+
+      // Calcular tiempo invertido en ESTA sesión
+      const sessionDuration = Math.floor(initialTimeLeft.current / 60);
+
       logHistory({
         timer_id: timer.id,
         title: timer.title,
-        duration_completed: timer.duration_minutes,
+        duration_completed: sessionDuration > 0 ? sessionDuration : timer.duration_minutes,
         status: 'completed',
       }).catch(console.error);
     }
 
     return () => clearInterval(interval);
-  }, [isActive, timeLeft, isCompleted, timer, logHistory]);
+  }, [isActive, timeLeft, isCompleted, timer, logHistory, updateTimer]);
 
   const handleClose = () => {
-    if (!isCompleted && timeLeft < timer.duration_minutes * 60) {
-      logHistory({
-        timer_id: timer.id,
-        title: timer.title,
-        duration_completed: Math.floor((timer.duration_minutes * 60 - timeLeft) / 60),
-        status: 'abandoned',
+    if (!isCompleted) {
+      // Guardar el tiempo restante actual en Supabase
+      updateTimer({
+        id: timer.id,
+        updates: { remaining_seconds: timeLeft, last_used_date: new Date().toISOString() }
       }).catch(console.error);
+
+      const sessionDurationMinutes = Math.floor((initialTimeLeft.current - timeLeft) / 60);
+      if (sessionDurationMinutes > 0) {
+        logHistory({
+          timer_id: timer.id,
+          title: timer.title,
+          duration_completed: sessionDurationMinutes,
+          status: 'abandoned',
+        }).catch(console.error);
+      }
     }
     onClose();
   };

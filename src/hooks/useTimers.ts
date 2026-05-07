@@ -30,7 +30,12 @@ export const useTimers = () => {
       
       const { data, error } = await supabase
         .from('timers')
-        .insert([{ ...newTimer, user_id: user.id }])
+        .insert([{ 
+          ...newTimer, 
+          user_id: user.id,
+          remaining_seconds: newTimer.duration_minutes * 60,
+          last_used_date: new Date().toISOString()
+        }])
         .select()
         .single();
 
