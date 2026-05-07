@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 import { CreateTimer } from '../components/timers/CreateTimer';
 import { TimerList } from '../components/timers/TimerList';
 import { ActiveSessionModal } from '../components/timers/ActiveSessionModal';
 import type { Timer } from '../types';
 
 export const Dashboard = () => {
-  const { user } = useAuth();
   const [activeTimer, setActiveTimer] = useState<Timer | null>(null);
 
   return (

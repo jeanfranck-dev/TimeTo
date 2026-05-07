@@ -1,7 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Timer } from '../../types';
-import { GripVertical, Play, Trash2, Edit2 } from 'lucide-react';
+import { GripVertical, Play, Trash2 } from 'lucide-react';
 
 interface TimerItemProps {
   timer: Timer;
